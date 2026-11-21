@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { createHash } from 'node:crypto';
 import rateLimit from 'express-rate-limit';
 import { ChatRequestSchema, ContactSubmitSchema } from '@portfolio/shared';
@@ -12,7 +12,13 @@ import { evolvePortfolioUi } from '../services/ui-evolution.service.js';
 
 export const publicRouter = Router();
 
-const strictLimiter = rateLimit({
+const rateLimitMiddleware = (
+  typeof rateLimit === 'function'
+    ? rateLimit
+    : (rateLimit as unknown as { default: (opts: Record<string, unknown>) => RequestHandler }).default
+) as (opts: Record<string, unknown>) => RequestHandler;
+
+const strictLimiter = rateLimitMiddleware({
   windowMs: 60_000,
   max: 8,
   standardHeaders: true,
