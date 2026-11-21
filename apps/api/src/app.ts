@@ -8,8 +8,20 @@ import { adminRouter } from './routes/admin.routes.js';
 
 export const app = express();
 
+const helmetMiddleware = (
+  typeof helmet === 'function'
+    ? helmet
+    : (helmet as unknown as { default: () => express.RequestHandler }).default
+) as () => express.RequestHandler;
+
+const rateLimitMiddleware = (
+  typeof rateLimit === 'function'
+    ? rateLimit
+    : (rateLimit as unknown as { default: (opts: Record<string, unknown>) => express.RequestHandler }).default
+) as (opts: Record<string, unknown>) => express.RequestHandler;
+
 app.set('trust proxy', 1);
-app.use(helmet());
+app.use(helmetMiddleware());
 app.use(
   cors({
     origin: env.WEB_ORIGIN.split(',').map((s) => s.trim()),
@@ -19,7 +31,7 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 
 app.use(
-  rateLimit({
+  rateLimitMiddleware({
     windowMs: 60_000,
     max: 120,
     standardHeaders: true,
