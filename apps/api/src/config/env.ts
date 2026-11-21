@@ -3,6 +3,18 @@ import { z } from 'zod';
 
 const emptyToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
 
+const safeOptionalUrl = (v: unknown) => {
+  if (typeof v !== 'string') return undefined;
+  const trimmed = v.trim().replace(/^["']|["']$/g, '');
+  if (!trimmed) return undefined;
+  try {
+    return new URL(trimmed).toString();
+  } catch {
+    console.warn(`[env] Ignoring invalid optional URL (${trimmed.slice(0, 40)}...)`);
+    return undefined;
+  }
+};
+
 const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -15,7 +27,7 @@ const EnvSchema = z.object({
   CONTACT_TO_EMAIL: z.preprocess(emptyToUndefined, z.string().email().default('contact@mdabdullah.dev')),
   CONTACT_FROM_EMAIL: z.preprocess(emptyToUndefined, z.string().default('Portfolio <onboarding@resend.dev>')),
   TURNSTILE_SECRET_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
-  REVALIDATE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  REVALIDATE_URL: z.preprocess(safeOptionalUrl, z.string().optional()),
   REVALIDATE_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
 });
 
