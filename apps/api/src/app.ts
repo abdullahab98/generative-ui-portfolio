@@ -20,11 +20,13 @@ const rateLimitMiddleware = (
     : (rateLimit as unknown as { default: (opts: Record<string, unknown>) => express.RequestHandler }).default
 ) as (opts: Record<string, unknown>) => express.RequestHandler;
 
+const allowedOrigins = env.WEB_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean);
+
 app.set('trust proxy', 1);
 app.use(helmetMiddleware());
 app.use(
   cors({
-    origin: env.WEB_ORIGIN.split(',').map((s) => s.trim()),
+    origin: allowedOrigins.includes('*') ? true : allowedOrigins,
     credentials: true,
   })
 );
