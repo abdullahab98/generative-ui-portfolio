@@ -1,0 +1,16 @@
+{
+  "name": "portfolio-rebuild",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm --workspace=@portfolio/api run dev",
+    "dev:web": "npm --workspace=@portfolio/web run dev",
+    "test": "npm --workspace=@portfolio/api run test",
+    "lint": "npm --workspace=@portfolio/web run lint",
+    "build": "npm --workspace=@portfolio/shared run build && npm --workspace=@portfolio/api run build && npm --workspace=@portfolio/web run build",
+    "typecheck": "npm --workspace=@portfolio/shared run typecheck && npm --workspace=@portfolio/api run typecheck && npm --workspace=@portfolio/web run typecheck"
+  }
+}

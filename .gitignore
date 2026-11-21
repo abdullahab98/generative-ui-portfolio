@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Environment variables (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Build outputs
+dist/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+
+# Logs & OS
+*.log
+.DS_Store

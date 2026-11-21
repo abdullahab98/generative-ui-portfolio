@@ -1,0 +1,44 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-ink: var(--accent-ink);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body,
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent, #06b6d4) 55%, transparent) var(--surface, #07090e);
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface, #07090e);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent, #06b6d4) 70%, transparent),
+    color-mix(in srgb, var(--accent-2, #6366f1) 70%, transparent)
+  );
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--accent, #06b6d4), var(--accent-2, #6366f1));
+}
