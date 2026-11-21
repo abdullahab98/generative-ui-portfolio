@@ -27,6 +27,7 @@ import {
   deleteSavedUiTemplate,
   evolvePortfolioUi,
   getPortfolioUiState,
+  getSavedUiTemplateByEpoch,
   getUiDisplayAdminData,
   getUiGenerationLogs,
   saveUiDisplayConfig,
@@ -405,6 +406,24 @@ adminRouter.get('/ui-state/templates', async (_req, res, next) => {
   try {
     const data = await getUiDisplayAdminData();
     res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.get('/ui-state/templates/:epoch', async (req, res, next) => {
+  try {
+    const epoch = Number(req.params.epoch);
+    if (!Number.isInteger(epoch) || epoch <= 0) {
+      res.status(400).json({ error: 'Invalid epoch number' });
+      return;
+    }
+    const template = await getSavedUiTemplateByEpoch(epoch);
+    if (!template) {
+      res.status(404).json({ error: 'Saved UI template not found' });
+      return;
+    }
+    res.json(template);
   } catch (err) {
     next(err);
   }

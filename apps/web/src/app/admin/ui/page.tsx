@@ -22,9 +22,17 @@ import {
   ArrowDown,
   Save,
   Layers,
+  Eye,
+  Monitor,
+  Tablet,
+  Smartphone,
+  Download,
+  Code2,
+  X,
 } from 'lucide-react';
 import {
   DEFAULT_UI_DISPLAY_CONFIG,
+  type PortfolioThemeSpec,
   type PortfolioUiState,
   type SavedUiTemplateSummary,
   type UiDisplayConfig,
@@ -51,12 +59,25 @@ const PROMPT_IDEAS = [
   'Retro-futuristic midnight blueprint terminal with crisp cyan grid lines and monospace metrics',
 ];
 
+interface SavedUiTemplateDetail {
+  epoch_number: number;
+  theme: PortfolioThemeSpec;
+  model_name?: string;
+  generated_html: string;
+}
+
 export default function AdminUiStudioPage() {
   const { token, toast } = useAdmin();
   const [uiState, setUiState] = useState<PortfolioUiState | null>(null);
   const [templates, setTemplates] = useState<SavedUiTemplateSummary[]>([]);
   const [displayConfig, setDisplayConfig] = useState<UiDisplayConfig>(DEFAULT_UI_DISPLAY_CONFIG);
   const [savingDisplay, setSavingDisplay] = useState(false);
+  const [previewEpoch, setPreviewEpoch] = useState<number | null>(null);
+  const [previewDetail, setPreviewDetail] = useState<SavedUiTemplateDetail | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+  const [previewTab, setPreviewTab] = useState<'render' | 'html'>('render');
+  const [previewViewport, setPreviewViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [logs, setLogs] = useState<UiGenerationLog[]>([]);
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
   const [activeStageTab, setActiveStageTab] = useState<'stage1' | 'stage2'>('stage1');
@@ -141,6 +162,33 @@ export default function AdminUiStudioPage() {
     } finally {
       setSavingDisplay(false);
     }
+  }
+
+  async function openPreview(epochNumber: number) {
+    if (!token) return;
+    setPreviewEpoch(epochNumber);
+    setPreviewDetail(null);
+    setPreviewError('');
+    setPreviewTab('render');
+    setLoadingPreview(true);
+    try {
+      const detail = await adminFetch<SavedUiTemplateDetail>(`/ui-state/templates/${epochNumber}`, token);
+      setPreviewDetail(detail);
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : 'Failed to load template HTML');
+    } finally {
+      setLoadingPreview(false);
+    }
+  }
+
+  function downloadTemplateHtml(detail: SavedUiTemplateDetail) {
+    const blob = new Blob([detail.generated_html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `portfolio-gen-${detail.epoch_number}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function deleteTemplate(epochNumber: number) {
@@ -333,10 +381,15 @@ export default function AdminUiStudioPage() {
       <Card className="space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold text-white flex items-center gap-2">
-              <Layers className="w-4 h-4 text-cyan-400" />
-              Visitor UI Display &amp; Rotation Control
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <Layers className="w-4 h-4 text-cyan-400" />
+                Visitor UI Display &amp; Rotation Control
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-cyan-400/15 text-cyan-300 border border-cyan-400/25">
+                {templates.length} saved
+              </span>
+            </div>
             <p className="text-xs text-slate-400 mt-0.5">
               Choose whether visitors see 1 pinned UI, a non-repeating random cycle, or a serial sequence of selected UIs.
             </p>
@@ -517,23 +570,34 @@ export default function AdminUiStudioPage() {
                   {/* Action Controls */}
                   <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.07]">
                     {displayConfig.mode === 'single' ? (
-                      <button
-                        type="button"
-                        disabled={savingDisplay || isPinned}
-                        onClick={() =>
-                          void saveDisplayConfig(
-                            { ...displayConfig, mode: 'single', pinned_epoch: tpl.epoch_number },
-                            `Gen #${tpl.epoch_number} (${tpl.theme.name}) is now LIVE for all visitors!`,
-                          )
-                        }
-                        className={`w-full py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                          isPinned
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-default'
-                            : 'bg-cyan-400 text-slate-950 hover:brightness-105'
-                        }`}
-                      >
-                        {isPinned ? '✓ Currently Live' : 'Set Live'}
-                      </button>
+                      <div className="flex items-center gap-2 w-full">
+                        <button
+                          type="button"
+                          onClick={() => void openPreview(tpl.epoch_number)}
+                          title="Preview this generated UI"
+                          className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/15 bg-white/[0.05] text-xs font-medium text-slate-200 hover:bg-white/[0.1] transition cursor-pointer shrink-0"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                          Preview
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingDisplay || isPinned}
+                          onClick={() =>
+                            void saveDisplayConfig(
+                              { ...displayConfig, mode: 'single', pinned_epoch: tpl.epoch_number },
+                              `Gen #${tpl.epoch_number} (${tpl.theme.name}) is now LIVE for all visitors!`,
+                            )
+                          }
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                            isPinned
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-default'
+                              : 'bg-cyan-400 text-slate-950 hover:brightness-105'
+                          }`}
+                        >
+                          {isPinned ? '✓ Currently Live' : 'Set Live'}
+                        </button>
+                      </div>
                     ) : (
                       <>
                         <label className="flex items-center gap-2 text-xs font-mono text-slate-200 cursor-pointer">
@@ -547,6 +611,14 @@ export default function AdminUiStudioPage() {
                         </label>
 
                         <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => void openPreview(tpl.epoch_number)}
+                            title="Preview this generated UI"
+                            className="p-1 rounded-md border border-white/10 bg-white/[0.04] text-slate-300 hover:text-cyan-300 cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
                           {displayConfig.mode === 'serial' && isSelected && (
                             <>
                               <button
@@ -910,6 +982,168 @@ export default function AdminUiStudioPage() {
           />
         </div>
       </Card>
+
+      {/* Generated UI Preview Modal */}
+      {previewEpoch !== null && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col p-3 sm:p-5">
+          <div className="flex-1 min-h-0 flex flex-col rounded-2xl border border-white/15 bg-[#090d16] shadow-2xl overflow-hidden">
+            {/* Modal Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-white/10 bg-[#070a12]">
+              <div className="flex flex-wrap items-center gap-2.5 min-w-0">
+                <span className="px-2.5 py-1 rounded-md bg-cyan-400/15 border border-cyan-400/30 text-xs font-mono font-bold text-cyan-300">
+                  Gen #{previewEpoch}
+                </span>
+                {previewDetail && (
+                  <>
+                    <span className="text-sm font-semibold text-white truncate">{previewDetail.theme.name}</span>
+                    <span className="hidden sm:inline text-xs font-mono text-slate-400">
+                      {previewDetail.model_name || 'ai-model'}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Render / HTML Switch */}
+                <div className="inline-flex rounded-lg border border-white/10 bg-white/[0.03] p-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('render')}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md cursor-pointer transition ${
+                      previewTab === 'render' ? 'bg-cyan-400/20 text-cyan-200 font-semibold' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Eye className="w-3.5 h-3.5" /> Preview
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('html')}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md cursor-pointer transition ${
+                      previewTab === 'html' ? 'bg-cyan-400/20 text-cyan-200 font-semibold' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Code2 className="w-3.5 h-3.5" /> HTML
+                  </button>
+                </div>
+
+                {/* Viewport Switcher */}
+                {previewTab === 'render' && (
+                  <div className="hidden md:inline-flex rounded-lg border border-white/10 bg-white/[0.03] p-0.5 text-xs">
+                    {(
+                      [
+                        { id: 'desktop', icon: Monitor, label: 'Desktop' },
+                        { id: 'tablet', icon: Tablet, label: 'Tablet' },
+                        { id: 'mobile', icon: Smartphone, label: 'Mobile' },
+                      ] as const
+                    ).map((vp) => {
+                      const VpIcon = vp.icon;
+                      return (
+                        <button
+                          key={vp.id}
+                          type="button"
+                          onClick={() => setPreviewViewport(vp.id)}
+                          title={vp.label}
+                          className={`p-1.5 rounded-md cursor-pointer transition ${
+                            previewViewport === vp.id ? 'bg-white/15 text-white' : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <VpIcon className="w-3.5 h-3.5" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {previewDetail && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void copyResponse(`preview-html-${previewEpoch}`, previewDetail.generated_html)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] text-xs text-slate-200 hover:bg-white/[0.08] cursor-pointer"
+                    >
+                      {copiedField === `preview-html-${previewEpoch}` ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                      <span className="hidden sm:inline">Copy HTML</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadTemplateHtml(previewDetail)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] text-xs text-slate-200 hover:bg-white/[0.08] cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Download</span>
+                    </button>
+                  </>
+                )}
+
+                <Link
+                  href={`/admin/ui/preview?epoch=${previewEpoch}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] text-xs text-slate-200 hover:bg-white/[0.08]"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">New Tab</span>
+                </Link>
+
+                <button
+                  type="button"
+                  disabled={savingDisplay}
+                  onClick={() =>
+                    void saveDisplayConfig(
+                      { ...displayConfig, mode: 'single', pinned_epoch: previewEpoch },
+                      `Gen #${previewEpoch} is now LIVE for all visitors!`,
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400 text-slate-950 text-xs font-semibold hover:brightness-105 cursor-pointer"
+                >
+                  <Pin className="w-3.5 h-3.5" /> Set Live
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewEpoch(null)}
+                  aria-label="Close preview"
+                  className="p-1.5 rounded-lg border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 min-h-0 bg-[#05070d] flex items-center justify-center overflow-auto">
+              {previewTab === 'render' ? (
+                <iframe
+                  key={`preview-frame-${previewEpoch}`}
+                  title={`Preview Gen #${previewEpoch}`}
+                  src={`/admin/ui/preview?epoch=${previewEpoch}`}
+                  style={{
+                    width:
+                      previewViewport === 'desktop'
+                        ? '100%'
+                        : previewViewport === 'tablet'
+                          ? '768px'
+                          : '390px',
+                  }}
+                  className="h-full max-w-full border-0 bg-white transition-all duration-200 shadow-2xl"
+                />
+              ) : loadingPreview ? (
+                <LoadingPanel label={`Loading Gen #${previewEpoch} HTML...`} />
+              ) : previewError ? (
+                <div className="p-6 text-sm text-rose-300">{previewError}</div>
+              ) : (
+                <pre className="w-full h-full overflow-auto p-5 text-xs font-mono text-slate-200 whitespace-pre-wrap break-words leading-relaxed">
+                  {previewDetail?.generated_html || ''}
+                </pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

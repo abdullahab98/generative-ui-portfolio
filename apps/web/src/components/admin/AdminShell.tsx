@@ -237,6 +237,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
   if (pathname === '/admin/login') {
     return <>{children}</>;
   }
+  if (pathname === '/admin/ui/preview') {
+    return <AdminProvider>{children}</AdminProvider>;
+  }
   return (
     <AdminProvider>
       <AdminShellInner>{children}</AdminShellInner>

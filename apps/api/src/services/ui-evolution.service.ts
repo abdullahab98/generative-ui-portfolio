@@ -101,7 +101,7 @@ let lastServedEpoch: number | null = null;
 let remainingEpochs: number[] = [];
 let serialCursor = 0;
 
-type SavedTemplate = {
+export type SavedTemplate = {
   epoch_number: number;
   theme: PortfolioThemeSpec;
   model_name?: string;
@@ -219,6 +219,22 @@ export async function getUiDisplayAdminData(): Promise<{
     })),
     displayConfig: parseDisplayConfig(rawRow.blueprint),
   };
+}
+
+export async function getSavedUiTemplateByEpoch(epochNumber: number): Promise<SavedTemplate | null> {
+  const { data, error } = await supabaseAdmin
+    .from('portfolio_ui_state')
+    .select('*')
+    .eq('slug', 'default')
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const rawRow = data as Record<string, unknown>;
+  const baseState = parseUiStateRow(rawRow);
+  if (!baseState) return null;
+
+  const templates = parseSavedTemplates(rawRow, baseState);
+  return templates.find((t) => t.epoch_number === epochNumber) ?? null;
 }
 
 export async function saveUiDisplayConfig(config: UiDisplayConfig): Promise<{
@@ -687,7 +703,7 @@ export async function evolvePortfolioUi(
       stage1: stage1Log,
       stage2: stage2Log,
     };
-    const nextLogs = [successLog, ...existingLogs].slice(0, 10);
+    const nextLogs = [successLog, ...existingLogs].slice(0, 30);
     const existingTemplates = parseSavedTemplates(rawRow as Record<string, unknown>, current);
     const nextTemplates: SavedTemplate[] = [
       {
@@ -697,7 +713,7 @@ export async function evolvePortfolioUi(
         generated_html: safeHtml,
       },
       ...existingTemplates.filter((t) => t.epoch_number !== current.epoch_number + 1),
-    ].slice(0, 15);
+    ];
 
     const effectiveCooldownSec = Math.max(current.cooldown_sec || 0, MIN_AUTO_COOLDOWN_SEC);
 
@@ -746,7 +762,7 @@ export async function evolvePortfolioUi(
         stage2: stage2Log,
         error: errMsg,
       };
-      const nextLogs = [errLog, ...existingLogs].slice(0, 10);
+      const nextLogs = [errLog, ...existingLogs].slice(0, 30);
       await supabaseAdmin
         .from('portfolio_ui_state')
         .update({
