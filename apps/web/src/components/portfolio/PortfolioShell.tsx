@@ -146,10 +146,15 @@ export function PortfolioShell({ data }: { data: PortfolioPayload }) {
       if (!doc) return;
 
       const brandTargets = doc.querySelectorAll(
-        'nav a[href="#home"], header a[href="#home"], .brand-logo, .mobile-brand, .sidebar-brand',
+        '.brand-logo, .mobile-brand, .sidebar-brand, nav > a[href="#home"], header > a[href="#home"]',
       );
       for (const brandEl of brandTargets) {
         if (brandEl.querySelector('img, svg')) continue;
+        if (brandEl.closest('ul, .nav-links, .portfolio-nav-links, .mobile-overlay, .mobile-menu')) {
+          continue;
+        }
+        const label = (brandEl.textContent || '').trim();
+        if (/^(0?\d+\s*[.\-·]?\s*)?home$/i.test(label)) continue;
         const logoImg = doc.createElement('img');
         logoImg.src = '/logo.svg';
         logoImg.alt = profile.brand_name || 'Md. Abdullah';
