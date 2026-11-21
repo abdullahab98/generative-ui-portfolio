@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   title: "Md. Abdullah | Full-Stack Software Engineer",
   description:
     "Full-Stack Software Engineer specializing in scalable web/mobile apps, AI integration, microservices architecture, and research publications.",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: "/icon.svg",
+    apple: "/logo.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

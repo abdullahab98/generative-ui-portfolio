@@ -16,7 +16,6 @@ import {
   LogOut,
   Menu,
   X,
-  ShieldCheck,
   CheckCircle2,
   AlertCircle,
   Info,
@@ -49,9 +48,8 @@ function AdminShellInner({ children }: { children: ReactNode }) {
       {/* Brand */}
       <div className="flex items-center justify-between px-5 py-5 border-b border-white/[0.08]">
         <Link href="/admin" onClick={() => setMobileOpen(false)} className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-indigo-500 flex items-center justify-center text-slate-950 shadow-lg shadow-cyan-500/20">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="Md. Abdullah" className="w-9 h-9 rounded-xl shadow-lg shadow-cyan-500/20" />
           <div>
             <div className="text-sm font-bold text-white leading-tight">Portfolio Studio</div>
             <div className="text-[11px] font-mono text-cyan-400">Admin Console</div>

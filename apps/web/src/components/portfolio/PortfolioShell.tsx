@@ -145,6 +145,21 @@ export function PortfolioShell({ data }: { data: PortfolioPayload }) {
       const doc = iframe.contentDocument;
       if (!doc) return;
 
+      const brandTargets = doc.querySelectorAll(
+        'nav a[href="#home"], header a[href="#home"], .brand-logo, .mobile-brand, .sidebar-brand',
+      );
+      for (const brandEl of brandTargets) {
+        if (brandEl.querySelector('img, svg')) continue;
+        const logoImg = doc.createElement('img');
+        logoImg.src = '/logo.svg';
+        logoImg.alt = profile.brand_name || 'Md. Abdullah';
+        logoImg.width = 24;
+        logoImg.height = 24;
+        logoImg.style.cssText =
+          'width:24px;height:24px;border-radius:6px;object-fit:contain;vertical-align:middle;margin-right:0.5rem;display:inline-block;flex-shrink:0;';
+        brandEl.prepend(logoImg);
+      }
+
       const skillsSection = doc.getElementById('skills');
       if (skillsSection && skills.length > 0) {
         const skillNames = skills.map((s) => s.name.trim().toLowerCase());
@@ -455,7 +470,7 @@ export function PortfolioShell({ data }: { data: PortfolioPayload }) {
       iframe.removeEventListener('load', attach);
       cleanupDoc?.();
     };
-  }, [html, skills]);
+  }, [html, skills, profile.brand_name]);
 
   const showAiBar = uiState?.show_ai_bar ?? true;
 
@@ -471,10 +486,14 @@ export function PortfolioShell({ data }: { data: PortfolioPayload }) {
           }
           className="px-4 py-1.5 text-xs font-mono flex flex-wrap items-center justify-between gap-2 shrink-0 border-b border-white/10"
         >
-          <span>
-            🧬 AI-Generated Portfolio · Gen #{uiState?.epoch_number ?? 1}
-            {theme ? ` · ${theme.name}` : ''}
-            {` · ${uiState?.model_name ?? 'gemini-3.5-flash-lite'}`}
+          <span className="inline-flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.svg" alt="Logo" className="w-4 h-4 rounded" />
+            <span>
+              AI-Generated Portfolio · Gen #{uiState?.epoch_number ?? 1}
+              {theme ? ` · ${theme.name}` : ''}
+              {` · ${uiState?.model_name ?? 'gemini-3.5-flash-lite'}`}
+            </span>
           </span>
         </header>
       )}
