@@ -175,6 +175,129 @@ function parseSavedTemplates(
   return Array.from(byEpoch.values()).sort((a, b) => b.epoch_number - a.epoch_number);
 }
 
+function isMissingTemplatesTableError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === '42P01' || error.code === 'PGRST205' || /portfolio_ui_templates/i.test(error.message ?? '');
+}
+
+async function upsertTemplateRow(template: SavedTemplate): Promise<boolean> {
+  const { error } = await supabaseAdmin.from('portfolio_ui_templates').upsert(
+    {
+      epoch_number: template.epoch_number,
+      theme: template.theme,
+      model_name: template.model_name ?? null,
+      generated_html: template.generated_html,
+      html_length: template.generated_html.length,
+    },
+    { onConflict: 'epoch_number' },
+  );
+  if (error) {
+    if (isMissingTemplatesTableError(error)) return false;
+    console.warn('[ui-templates] upsert failed:', error.message);
+    return false;
+  }
+  return true;
+}
+
+async function fetchTemplateSummariesFromTable(): Promise<SavedUiTemplateSummary[] | null> {
+  const { data, error } = await supabaseAdmin
+    .from('portfolio_ui_templates')
+    .select('epoch_number, theme, model_name, html_length')
+    .order('epoch_number', { ascending: false });
+
+  if (error) {
+    if (isMissingTemplatesTableError(error)) return null;
+    throw error;
+  }
+
+  const summaries: SavedUiTemplateSummary[] = [];
+  for (const row of data ?? []) {
+    const themeParsed = PortfolioThemeSpecSchema.safeParse(row.theme);
+    if (typeof row.epoch_number === 'number' && themeParsed.success) {
+      summaries.push({
+        epoch_number: row.epoch_number,
+        theme: themeParsed.data,
+        model_name: typeof row.model_name === 'string' ? row.model_name : undefined,
+        html_length: typeof row.html_length === 'number' ? row.html_length : 0,
+      });
+    }
+  }
+  return summaries;
+}
+
+async function fetchTemplateRowByEpoch(epochNumber: number): Promise<SavedTemplate | null> {
+  const { data, error } = await supabaseAdmin
+    .from('portfolio_ui_templates')
+    .select('epoch_number, theme, model_name, generated_html')
+    .eq('epoch_number', epochNumber)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const themeParsed = PortfolioThemeSpecSchema.safeParse(data.theme);
+  if (!themeParsed.success || typeof data.generated_html !== 'string') return null;
+
+  return {
+    epoch_number: data.epoch_number,
+    theme: themeParsed.data,
+    model_name: typeof data.model_name === 'string' ? data.model_name : undefined,
+    generated_html: data.generated_html,
+  };
+}
+
+async function fetchAllTemplatesFromTable(): Promise<SavedTemplate[] | null> {
+  const { data, error } = await supabaseAdmin
+    .from('portfolio_ui_templates')
+    .select('epoch_number, theme, model_name, generated_html')
+    .order('epoch_number', { ascending: false });
+
+  if (error) {
+    if (isMissingTemplatesTableError(error)) return null;
+    throw error;
+  }
+
+  const templates: SavedTemplate[] = [];
+  for (const row of data ?? []) {
+    const themeParsed = PortfolioThemeSpecSchema.safeParse(row.theme);
+    if (typeof row.epoch_number === 'number' && themeParsed.success && typeof row.generated_html === 'string') {
+      templates.push({
+        epoch_number: row.epoch_number,
+        theme: themeParsed.data,
+        model_name: typeof row.model_name === 'string' ? row.model_name : undefined,
+        generated_html: row.generated_html,
+      });
+    }
+  }
+  return templates;
+}
+
+async function backfillLegacyTemplatesToTable(): Promise<SavedTemplate[]> {
+  const { data, error } = await supabaseAdmin
+    .from('portfolio_ui_state')
+    .select('*')
+    .eq('slug', 'default')
+    .maybeSingle();
+
+  if (error || !data) return [];
+  const rawRow = data as Record<string, unknown>;
+  const baseState = parseUiStateRow(rawRow);
+  if (!baseState) return [];
+
+  const legacy = parseSavedTemplates(rawRow, baseState);
+  if (legacy.length > 0) {
+    await supabaseAdmin.from('portfolio_ui_templates').upsert(
+      legacy.map((t) => ({
+        epoch_number: t.epoch_number,
+        theme: t.theme,
+        model_name: t.model_name ?? null,
+        generated_html: t.generated_html,
+        html_length: t.generated_html.length,
+      })),
+      { onConflict: 'epoch_number' },
+    );
+  }
+  return legacy;
+}
+
 function parseUiStateRow(data: Record<string, unknown> | null): PortfolioUiState | undefined {
   if (!data) return undefined;
   const bp = data.blueprint as { model_name?: string; show_ai_bar?: boolean } | null | undefined;
@@ -216,6 +339,36 @@ export async function getUiDisplayAdminData(): Promise<{
   templates: SavedUiTemplateSummary[];
   displayConfig: UiDisplayConfig;
 }> {
+  const [tableSummaries, stateRes] = await Promise.all([
+    fetchTemplateSummariesFromTable(),
+    supabaseAdmin
+      .from('portfolio_ui_state')
+      .select('display_config:blueprint->display_config')
+      .eq('slug', 'default')
+      .maybeSingle(),
+  ]);
+
+  const displayConfig = parseDisplayConfig({
+    display_config: (stateRes.data as { display_config?: unknown } | null)?.display_config,
+  });
+
+  if (tableSummaries !== null) {
+    if (tableSummaries.length > 0) {
+      return { templates: tableSummaries, displayConfig };
+    }
+    const backfilled = await backfillLegacyTemplatesToTable();
+    return {
+      templates: backfilled.map((t) => ({
+        epoch_number: t.epoch_number,
+        theme: t.theme,
+        model_name: t.model_name,
+        html_length: t.generated_html.length,
+      })),
+      displayConfig,
+    };
+  }
+
+  // Fallback if portfolio_ui_templates table hasn't been created yet
   const { data, error } = await supabaseAdmin
     .from('portfolio_ui_state')
     .select(
@@ -255,6 +408,9 @@ export async function getUiDisplayAdminData(): Promise<{
 }
 
 export async function getSavedUiTemplateByEpoch(epochNumber: number): Promise<SavedTemplate | null> {
+  const fromTable = await fetchTemplateRowByEpoch(epochNumber);
+  if (fromTable) return fromTable;
+
   const { data, error } = await supabaseAdmin
     .from('portfolio_ui_state')
     .select('*')
@@ -298,21 +454,22 @@ export async function saveUiDisplayConfig(config: UiDisplayConfig): Promise<{
 
   // In single mode, also sync the active row's theme & generated_html to the pinned template
   if (validated.mode === 'single' && validated.pinned_epoch && current) {
+    const fromTable = await fetchTemplateRowByEpoch(validated.pinned_epoch);
     const rawRow = current as Record<string, unknown>;
     const baseState = parseUiStateRow(rawRow);
-    if (baseState) {
-      const templates = parseSavedTemplates(rawRow, baseState);
-      const pinned = templates.find((t) => t.epoch_number === validated.pinned_epoch);
-      if (pinned) {
-        updatePayload.epoch_number = pinned.epoch_number;
-        updatePayload.theme = pinned.theme;
-        updatePayload.generated_html = pinned.generated_html;
-        updatePayload.blueprint = {
-          ...existingBp,
-          model_name: pinned.model_name ?? existingBp.model_name,
-          display_config: validated,
-        };
-      }
+    const pinned =
+      fromTable ??
+      (baseState ? parseSavedTemplates(rawRow, baseState).find((t) => t.epoch_number === validated.pinned_epoch) : undefined);
+
+    if (pinned) {
+      updatePayload.epoch_number = pinned.epoch_number;
+      updatePayload.theme = pinned.theme;
+      updatePayload.generated_html = pinned.generated_html;
+      updatePayload.blueprint = {
+        ...existingBp,
+        model_name: pinned.model_name ?? existingBp.model_name,
+        display_config: validated,
+      };
     }
   }
 
@@ -330,21 +487,30 @@ export async function deleteSavedUiTemplate(epochNumber: number): Promise<{
   templates: SavedUiTemplateSummary[];
   displayConfig: UiDisplayConfig;
 }> {
-  const { data: current, error: readErr } = await supabaseAdmin
-    .from('portfolio_ui_state')
-    .select('*')
-    .eq('slug', 'default')
-    .maybeSingle();
+  const [{ data: current, error: readErr }, tableTemplates] = await Promise.all([
+    supabaseAdmin.from('portfolio_ui_state').select('*').eq('slug', 'default').maybeSingle(),
+    fetchAllTemplatesFromTable(),
+  ]);
 
   if (readErr || !current) throw new Error('UI state not found');
   const rawRow = current as Record<string, unknown>;
   const baseState = parseUiStateRow(rawRow);
   if (!baseState) throw new Error('Invalid UI state');
 
-  const templates = parseSavedTemplates(rawRow, baseState);
+  const templates = tableTemplates !== null && tableTemplates.length > 0
+    ? tableTemplates
+    : parseSavedTemplates(rawRow, baseState);
   const remaining = templates.filter((t) => t.epoch_number !== epochNumber);
   if (remaining.length === 0) {
     throw new Error('Cannot delete the last remaining template.');
+  }
+
+  if (tableTemplates !== null) {
+    const { error: delErr } = await supabaseAdmin
+      .from('portfolio_ui_templates')
+      .delete()
+      .eq('epoch_number', epochNumber);
+    if (delErr) throw delErr;
   }
 
   const existingBp =
@@ -359,12 +525,18 @@ export async function deleteSavedUiTemplate(epochNumber: number): Promise<{
   };
 
   const nextActive = baseState.epoch_number === epochNumber ? remaining[0] : null;
+  const nextBp: Record<string, unknown> = {
+    ...existingBp,
+    display_config: nextConfig,
+  };
+  if (tableTemplates === null) {
+    nextBp.saved_templates = remaining;
+  } else {
+    delete nextBp.saved_templates;
+  }
+
   const updatePayload: Record<string, unknown> = {
-    blueprint: {
-      ...existingBp,
-      saved_templates: remaining,
-      display_config: nextConfig,
-    },
+    blueprint: nextBp,
     updated_at: new Date().toISOString(),
   };
 
@@ -390,17 +562,19 @@ export async function deleteSavedUiTemplate(epochNumber: number): Promise<{
 export async function getPortfolioUiStateForVisitor(): Promise<PortfolioUiState | undefined> {
   let cached = visitorUiCache;
   if (!cached || cached.expiresAt <= Date.now()) {
-    // Select only the fields needed for visitor rendering — exclude heavy blueprint->generation_logs
-    const { data, error } = await supabaseAdmin
-      .from('portfolio_ui_state')
-      .select(
-        'slug, epoch_number, theme, generated_html, auto_evolve, cooldown_sec, next_evolution_at, model_name:blueprint->model_name, show_ai_bar:blueprint->show_ai_bar, display_config:blueprint->display_config, saved_templates:blueprint->saved_templates',
-      )
-      .eq('slug', 'default')
-      .maybeSingle();
+    const [stateRes, tableTemplates] = await Promise.all([
+      supabaseAdmin
+        .from('portfolio_ui_state')
+        .select(
+          'slug, epoch_number, theme, generated_html, auto_evolve, cooldown_sec, next_evolution_at, model_name:blueprint->model_name, show_ai_bar:blueprint->show_ai_bar, display_config:blueprint->display_config, saved_templates:blueprint->saved_templates',
+        )
+        .eq('slug', 'default')
+        .maybeSingle(),
+      fetchAllTemplatesFromTable(),
+    ]);
 
-    if (error || !data) return undefined;
-    const rawRow = data as Record<string, unknown>;
+    if (stateRes.error || !stateRes.data) return undefined;
+    const rawRow = stateRes.data as Record<string, unknown>;
     const synthRow: Record<string, unknown> = {
       ...rawRow,
       blueprint: {
@@ -413,7 +587,10 @@ export async function getPortfolioUiStateForVisitor(): Promise<PortfolioUiState 
     const baseState = parseUiStateRow(synthRow);
     if (!baseState) return undefined;
 
-    const templates = parseSavedTemplates(synthRow, baseState);
+    const templates =
+      tableTemplates !== null && tableTemplates.length > 0
+        ? tableTemplates
+        : parseSavedTemplates(synthRow, baseState);
     const displayConfig = parseDisplayConfig(synthRow.blueprint);
     cached = {
       expiresAt: Date.now() + VISITOR_CACHE_TTL_MS,
@@ -763,16 +940,31 @@ export async function evolvePortfolioUi(
       stage2: stage2Log,
     };
     const nextLogs = [successLog, ...existingLogs].slice(0, 30);
-    const existingTemplates = parseSavedTemplates(rawRow as Record<string, unknown>, current);
-    const nextTemplates: SavedTemplate[] = [
-      {
-        epoch_number: current.epoch_number + 1,
-        theme: nextTheme,
-        model_name: activeModelLabel,
-        generated_html: safeHtml,
-      },
-      ...existingTemplates.filter((t) => t.epoch_number !== current.epoch_number + 1),
-    ];
+    const newTemplate: SavedTemplate = {
+      epoch_number: current.epoch_number + 1,
+      theme: nextTheme,
+      model_name: activeModelLabel,
+      generated_html: safeHtml,
+    };
+
+    // Save the new UI in its own dedicated row in portfolio_ui_templates
+    const savedToTable = await upsertTemplateRow(newTemplate);
+    const nextBp: Record<string, unknown> = {
+      ...existingBp,
+      history: nextHistory,
+      model_name: activeModelLabel,
+      ai_routing: routing,
+      generation_logs: nextLogs,
+    };
+    if (!savedToTable) {
+      const existingTemplates = parseSavedTemplates(rawRow as Record<string, unknown>, current);
+      nextBp.saved_templates = [
+        newTemplate,
+        ...existingTemplates.filter((t) => t.epoch_number !== newTemplate.epoch_number),
+      ];
+    } else {
+      delete nextBp.saved_templates;
+    }
 
     const effectiveCooldownSec = Math.max(current.cooldown_sec || 0, MIN_AUTO_COOLDOWN_SEC);
 
@@ -780,14 +972,7 @@ export async function evolvePortfolioUi(
       epoch_number: current.epoch_number + 1,
       theme: nextTheme,
       cooldown_sec: effectiveCooldownSec,
-      blueprint: {
-        ...existingBp,
-        history: nextHistory,
-        model_name: activeModelLabel,
-        ai_routing: routing,
-        generation_logs: nextLogs,
-        saved_templates: nextTemplates,
-      },
+      blueprint: nextBp,
       generated_html: safeHtml,
       refreshed_sections: ['hero', 'projects', 'publications'],
       next_evolution_at: new Date(Date.now() + effectiveCooldownSec * 1000).toISOString(),

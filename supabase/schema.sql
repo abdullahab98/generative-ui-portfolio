@@ -135,6 +135,16 @@ alter table public.portfolio_ui_state
 alter table public.portfolio_ui_state
   add column if not exists generated_html text;
 
+-- 8. Individual Saved Generative UI Templates (one row per generated UI)
+create table if not exists public.portfolio_ui_templates (
+  epoch_number int primary key,
+  theme jsonb not null,
+  model_name text,
+  generated_html text not null,
+  html_length int not null default 0,
+  created_at timestamptz not null default now()
+);
+
 -- ============================================================
 -- Row Level Security (RLS)
 -- ============================================================
@@ -146,6 +156,7 @@ alter table public.contact_messages enable row level security;
 alter table public.ai_settings enable row level security;
 alter table public.admin_users enable row level security;
 alter table public.portfolio_ui_state enable row level security;
+alter table public.portfolio_ui_templates enable row level security;
 
 -- Public read access ONLY for published portfolio content
 create policy "Public read site_profile"
@@ -182,6 +193,8 @@ create policy "Admin all ai_settings" on public.ai_settings for all using (publi
 create policy "Admin read self" on public.admin_users for select using (auth.uid() = user_id);
 create policy "Public read portfolio_ui_state" on public.portfolio_ui_state for select using (true);
 create policy "Admin all portfolio_ui_state" on public.portfolio_ui_state for all using (public.is_admin()) with check (public.is_admin());
+create policy "Public read portfolio_ui_templates" on public.portfolio_ui_templates for select using (true);
+create policy "Admin all portfolio_ui_templates" on public.portfolio_ui_templates for all using (public.is_admin()) with check (public.is_admin());
 
 -- ============================================================
 -- Storage Bucket for Project Images & Resume PDF
