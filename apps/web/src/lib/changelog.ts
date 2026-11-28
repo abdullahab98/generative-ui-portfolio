@@ -7,6 +7,15 @@ export interface ReleaseEntry {
 
 export const APP_CHANGELOG: ReleaseEntry[] = [
   {
+    version: '0.2.3',
+    date: '2026-11-28',
+    title: 'Per-Row Table Optimization & Template Timestamps',
+    changes: [
+      'Backend visitor & admin template queries now fetch only lightweight metadata or the single active template row instead of loading all HTML rows.',
+      'Added created_at timestamps to SavedUiTemplateSummary and displayed template dates in the Generative UI Studio cards.',
+    ],
+  },
+  {
     version: '0.2.2',
     date: '2026-11-28',
     title: 'Blueprint-to-Table Template Migration & Cleanup',

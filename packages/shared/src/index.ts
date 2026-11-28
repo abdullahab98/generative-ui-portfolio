@@ -207,6 +207,7 @@ export const SavedUiTemplateSummarySchema = z.object({
   theme: PortfolioThemeSpecSchema,
   model_name: z.string().optional(),
   html_length: z.number().int().nonnegative(),
+  created_at: z.string().optional(),
 });
 export type SavedUiTemplateSummary = z.infer<typeof SavedUiTemplateSummarySchema>;
 

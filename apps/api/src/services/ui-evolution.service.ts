@@ -202,7 +202,7 @@ async function upsertTemplateRow(template: SavedTemplate): Promise<boolean> {
 async function fetchTemplateSummariesFromTable(): Promise<SavedUiTemplateSummary[] | null> {
   const { data, error } = await supabaseAdmin
     .from('portfolio_ui_templates')
-    .select('epoch_number, theme, model_name, html_length')
+    .select('epoch_number, theme, model_name, html_length, created_at')
     .order('epoch_number', { ascending: false });
 
   if (error) {
@@ -219,6 +219,7 @@ async function fetchTemplateSummariesFromTable(): Promise<SavedUiTemplateSummary
         theme: themeParsed.data,
         model_name: typeof row.model_name === 'string' ? row.model_name : undefined,
         html_length: typeof row.html_length === 'number' ? row.html_length : 0,
+        created_at: typeof row.created_at === 'string' ? row.created_at : undefined,
       });
     }
   }

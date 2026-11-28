@@ -562,9 +562,12 @@ export default function AdminUiStudioPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 gap-2">
                     <span className="truncate">{tpl.model_name || 'ai-model'}</span>
-                    <span>{(tpl.html_length / 1024).toFixed(1)} KB</span>
+                    <span className="shrink-0">
+                      {(tpl.html_length / 1024).toFixed(1)} KB
+                      {tpl.created_at ? ` · ${new Date(tpl.created_at).toLocaleDateString()}` : ''}
+                    </span>
                   </div>
 
                   {/* Action Controls */}
