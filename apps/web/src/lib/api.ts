@@ -18,12 +18,12 @@ export async function fetchPortfolio(): Promise<PortfolioPayload> {
 }
 
 export async function adminFetch<T>(path: string, token: string, init?: RequestInit): Promise<T> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  let activeToken = sessionData.session?.access_token || token;
+  let activeToken = token;
 
   const doFetch = (jwt: string) =>
     fetch(`${API_URL}/api/v1/admin${path}`, {
       ...init,
+      signal: init?.signal ?? AbortSignal.timeout(15_000),
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${jwt}`,

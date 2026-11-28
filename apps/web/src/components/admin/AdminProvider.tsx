@@ -41,6 +41,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const tokenRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
 
   const dismissToast = useCallback((id: string) => {
     const t = timersRef.current.get(id);
@@ -82,7 +87,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshUnreadCount = useCallback(async (jwtOverride?: string) => {
-    const jwt = jwtOverride || token;
+    const jwt = jwtOverride || tokenRef.current;
     if (!jwt) return;
     try {
       const overview = await adminFetch<{ unreadMessagesCount: number }>('/overview', jwt);
@@ -90,7 +95,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore background count refresh errors
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     let active = true;

@@ -189,12 +189,21 @@ function parseUiStateRow(data: Record<string, unknown> | null): PortfolioUiState
 export async function getPortfolioUiState(): Promise<PortfolioUiState | undefined> {
   const { data, error } = await supabaseAdmin
     .from('portfolio_ui_state')
-    .select('*')
+    .select(
+      'slug, epoch_number, theme, generated_html, auto_evolve, cooldown_sec, next_evolution_at, model_name:blueprint->model_name, show_ai_bar:blueprint->show_ai_bar',
+    )
     .eq('slug', 'default')
     .maybeSingle();
 
   if (error || !data) return undefined;
-  return parseUiStateRow(data as Record<string, unknown>);
+  const raw = data as Record<string, unknown>;
+  return parseUiStateRow({
+    ...raw,
+    blueprint: {
+      model_name: raw.model_name,
+      show_ai_bar: raw.show_ai_bar,
+    },
+  });
 }
 
 function parseDisplayConfig(blueprint: unknown): UiDisplayConfig {
@@ -209,14 +218,25 @@ export async function getUiDisplayAdminData(): Promise<{
 }> {
   const { data, error } = await supabaseAdmin
     .from('portfolio_ui_state')
-    .select('*')
+    .select(
+      'slug, epoch_number, theme, generated_html, auto_evolve, cooldown_sec, next_evolution_at, model_name:blueprint->model_name, show_ai_bar:blueprint->show_ai_bar, display_config:blueprint->display_config, saved_templates:blueprint->saved_templates',
+    )
     .eq('slug', 'default')
     .maybeSingle();
 
   if (error || !data) {
     return { templates: [], displayConfig: DEFAULT_UI_DISPLAY_CONFIG };
   }
-  const rawRow = data as Record<string, unknown>;
+  const raw = data as Record<string, unknown>;
+  const rawRow: Record<string, unknown> = {
+    ...raw,
+    blueprint: {
+      model_name: raw.model_name,
+      show_ai_bar: raw.show_ai_bar,
+      display_config: raw.display_config,
+      saved_templates: raw.saved_templates,
+    },
+  };
   const baseState = parseUiStateRow(rawRow);
   if (!baseState) {
     return { templates: [], displayConfig: DEFAULT_UI_DISPLAY_CONFIG };
@@ -482,12 +502,12 @@ function parseGenerationLogs(blueprint: unknown): UiGenerationLog[] {
 export async function getUiGenerationLogs(): Promise<UiGenerationLog[]> {
   const { data, error } = await supabaseAdmin
     .from('portfolio_ui_state')
-    .select('blueprint')
+    .select('generation_logs:blueprint->generation_logs')
     .eq('slug', 'default')
     .maybeSingle();
 
   if (error || !data) return [];
-  return parseGenerationLogs(data.blueprint);
+  return parseGenerationLogs({ generation_logs: (data as { generation_logs?: unknown }).generation_logs });
 }
 
 export async function clearUiGenerationLogs(): Promise<void> {
