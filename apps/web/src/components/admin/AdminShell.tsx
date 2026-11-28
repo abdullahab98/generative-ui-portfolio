@@ -19,11 +19,13 @@ import {
   CheckCircle2,
   AlertCircle,
   Info,
+  History,
 } from 'lucide-react';
+import { APP_CHANGELOG } from '@/lib/changelog';
 import { AdminProvider, useAdmin } from './AdminProvider';
 import { LoadingPanel } from './AdminUi';
 
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.2.0';
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.2.1';
 const BUILD_SHA = process.env.NEXT_PUBLIC_BUILD_SHA || '';
 
 const NAV_ITEMS = [
@@ -41,6 +43,7 @@ function AdminShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { token, checkingAuth, userEmail, unreadCount, signOut, toasts, dismissToast } = useAdmin();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
 
   const currentNav =
     NAV_ITEMS.find((item) => ('exact' in item && item.exact ? pathname === item.href : pathname.startsWith(item.href))) ??
@@ -162,14 +165,16 @@ function AdminShellInner({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
-            <span
-              title={`App v${APP_VERSION}${BUILD_SHA ? ` (${BUILD_SHA})` : ''}`}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-mono text-slate-300"
+            <button
+              type="button"
+              onClick={() => setChangelogOpen(true)}
+              title={`App v${APP_VERSION}${BUILD_SHA ? ` (${BUILD_SHA})` : ''} — Click to view update history`}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-mono text-slate-300 hover:border-cyan-400/40 hover:bg-white/[0.08] hover:text-white transition cursor-pointer"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               <span>v{APP_VERSION}</span>
               {BUILD_SHA && <span className="hidden sm:inline text-slate-500">· {BUILD_SHA}</span>}
-            </span>
+            </button>
 
             <Link
               href="/"
@@ -190,6 +195,65 @@ function AdminShellInner({ children }: { children: ReactNode }) {
       {(checkingAuth || !token) && (
         <div className="fixed inset-0 z-50 bg-[#06080f] flex items-center justify-center">
           <LoadingPanel label="Verifying admin session..." />
+        </div>
+      )}
+
+      {/* Release History / Changelog Modal */}
+      {changelogOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setChangelogOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#090d16] p-6 shadow-2xl space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-white/[0.08] pb-4">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-mono text-cyan-400">
+                  <History className="w-4 h-4" />
+                  <span>Release History</span>
+                </div>
+                <h2 className="text-lg font-bold text-white mt-1">
+                  Current Build: v{APP_VERSION} {BUILD_SHA ? `(${BUILD_SHA})` : ''}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChangelogOpen(false)}
+                aria-label="Close release history"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {APP_CHANGELOG.map((rel, idx) => (
+                <div
+                  key={rel.version}
+                  className={`rounded-xl border p-4 space-y-2.5 ${
+                    idx === 0 ? 'border-cyan-400/35 bg-cyan-400/[0.05]' : 'border-white/[0.08] bg-[#060911]'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-cyan-400/15 text-cyan-300 text-xs font-mono font-bold">
+                        v{rel.version}
+                      </span>
+                      <span className="text-sm font-semibold text-white">{rel.title}</span>
+                    </div>
+                    <span className="text-[11px] font-mono text-slate-500">{rel.date}</span>
+                  </div>
+                  <ul className="space-y-1.5 text-xs text-slate-300 list-disc pl-4 leading-relaxed">
+                    {rel.changes.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
