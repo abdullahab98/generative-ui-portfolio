@@ -23,6 +23,9 @@ import {
 import { AdminProvider, useAdmin } from './AdminProvider';
 import { LoadingPanel } from './AdminUi';
 
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.2.0';
+const BUILD_SHA = process.env.NEXT_PUBLIC_BUILD_SHA || '';
+
 const NAV_ITEMS = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/admin/profile', label: 'Profile', icon: UserCircle },
@@ -158,14 +161,25 @@ function AdminShellInner({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <Link
-            href="/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-1.5 text-xs font-mono text-cyan-300 hover:bg-cyan-400/20 transition shrink-0"
-          >
-            View Portfolio <ExternalLink className="w-3.5 h-3.5" />
-          </Link>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <span
+              title={`App v${APP_VERSION}${BUILD_SHA ? ` (${BUILD_SHA})` : ''}`}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-mono text-slate-300"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span>v{APP_VERSION}</span>
+              {BUILD_SHA && <span className="hidden sm:inline text-slate-500">· {BUILD_SHA}</span>}
+            </span>
+
+            <Link
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-1.5 text-xs font-mono text-cyan-300 hover:bg-cyan-400/20 transition shrink-0"
+            >
+              View Portfolio <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </header>
 
         <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
