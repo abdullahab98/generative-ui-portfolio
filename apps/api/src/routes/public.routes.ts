@@ -29,7 +29,7 @@ const strictLimiter = rateLimitMiddleware({
 publicRouter.get('/portfolio', async (_req, res, next) => {
   try {
     const data = await getPublicPortfolio();
-    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
     res.json(data);
     // Non-blocking background UI evolution for the next visitor if cooldown elapsed
     void evolvePortfolioUi(false);

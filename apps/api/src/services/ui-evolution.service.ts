@@ -97,9 +97,22 @@ function extractHtmlAndTheme(rawText: string, fallbackTheme: PortfolioThemeSpec)
 }
 
 const MIN_AUTO_COOLDOWN_SEC = 20 * 60; // 20 minutes minimum between automatic generations
+const VISITOR_CACHE_TTL_MS = 30_000;
 let lastServedEpoch: number | null = null;
 let remainingEpochs: number[] = [];
 let serialCursor = 0;
+
+type VisitorUiCacheEntry = {
+  expiresAt: number;
+  baseState: PortfolioUiState;
+  templates: SavedTemplate[];
+  displayConfig: UiDisplayConfig;
+};
+let visitorUiCache: VisitorUiCacheEntry | null = null;
+
+export function invalidateVisitorUiCache(): void {
+  visitorUiCache = null;
+}
 
 export type SavedTemplate = {
   epoch_number: number;
@@ -253,9 +266,10 @@ export async function saveUiDisplayConfig(config: UiDisplayConfig): Promise<{
       ? (current.blueprint as Record<string, unknown>)
       : {};
 
-  // Reset in-memory rotation state so new mode/selection takes effect immediately
+  // Reset in-memory rotation state and visitor cache so new mode/selection takes effect immediately
   remainingEpochs = [];
   serialCursor = 0;
+  invalidateVisitorUiCache();
 
   const updatePayload: Record<string, unknown> = {
     blueprint: { ...existingBp, display_config: validated },
@@ -347,28 +361,53 @@ export async function deleteSavedUiTemplate(epochNumber: number): Promise<{
   if (error) throw error;
 
   remainingEpochs = remainingEpochs.filter((ep) => ep !== epochNumber);
+  invalidateVisitorUiCache();
   await triggerWebRevalidation();
   return getUiDisplayAdminData();
 }
 
 /** Return the visitor UI according to Admin's Display Mode (single / random / serial) & selected templates. */
 export async function getPortfolioUiStateForVisitor(): Promise<PortfolioUiState | undefined> {
-  const { data, error } = await supabaseAdmin
-    .from('portfolio_ui_state')
-    .select('*')
-    .eq('slug', 'default')
-    .maybeSingle();
+  let cached = visitorUiCache;
+  if (!cached || cached.expiresAt <= Date.now()) {
+    // Select only the fields needed for visitor rendering — exclude heavy blueprint->generation_logs
+    const { data, error } = await supabaseAdmin
+      .from('portfolio_ui_state')
+      .select(
+        'slug, epoch_number, theme, generated_html, auto_evolve, cooldown_sec, next_evolution_at, model_name:blueprint->model_name, show_ai_bar:blueprint->show_ai_bar, display_config:blueprint->display_config, saved_templates:blueprint->saved_templates',
+      )
+      .eq('slug', 'default')
+      .maybeSingle();
 
-  if (error || !data) return undefined;
-  const rawRow = data as Record<string, unknown>;
-  const baseState = parseUiStateRow(rawRow);
-  if (!baseState) return undefined;
+    if (error || !data) return undefined;
+    const rawRow = data as Record<string, unknown>;
+    const synthRow: Record<string, unknown> = {
+      ...rawRow,
+      blueprint: {
+        model_name: rawRow.model_name,
+        show_ai_bar: rawRow.show_ai_bar,
+        display_config: rawRow.display_config,
+        saved_templates: rawRow.saved_templates,
+      },
+    };
+    const baseState = parseUiStateRow(synthRow);
+    if (!baseState) return undefined;
 
-  const templates = parseSavedTemplates(rawRow, baseState);
+    const templates = parseSavedTemplates(synthRow, baseState);
+    const displayConfig = parseDisplayConfig(synthRow.blueprint);
+    cached = {
+      expiresAt: Date.now() + VISITOR_CACHE_TTL_MS,
+      baseState,
+      templates,
+      displayConfig,
+    };
+    visitorUiCache = cached;
+  }
+
+  const { baseState, templates, displayConfig: config } = cached;
   if (templates.length === 0) return baseState;
 
   const byEpoch = new Map(templates.map((t) => [t.epoch_number, t]));
-  const config = parseDisplayConfig(rawRow.blueprint);
 
   // Mode 1: Single pinned UI
   if (config.mode === 'single') {
@@ -743,6 +782,7 @@ export async function evolvePortfolioUi(
       .single();
 
     if (error) throw error;
+    invalidateVisitorUiCache();
     await triggerWebRevalidation();
     return parseUiStateRow(data as Record<string, unknown>) ?? PortfolioUiStateSchema.parse(data);
   } catch (err) {

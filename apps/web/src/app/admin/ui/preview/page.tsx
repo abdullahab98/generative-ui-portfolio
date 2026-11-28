@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { PortfolioPayload, PortfolioThemeSpec } from '@portfolio/shared';
 import { adminFetch, fetchPortfolio } from '@/lib/api';
+import { preparePortfolioIframeHtml } from '@/lib/iframe-html';
 import { useAdmin } from '@/components/admin/AdminProvider';
 import { PortfolioShell } from '@/components/portfolio/PortfolioShell';
 import { LoadingPanel } from '@/components/admin/AdminUi';
@@ -87,7 +88,31 @@ function AdminUiPreviewInner() {
     );
   }
 
-  return <PortfolioShell data={payload} />;
+  const styledHtml = preparePortfolioIframeHtml(payload.uiState?.generated_html, payload.uiState?.theme);
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[#07090e] text-slate-100">
+      {styledHtml ? (
+        <iframe
+          id="portfolio-frame"
+          title="AI Generated Portfolio Preview"
+          srcDoc={styledHtml}
+          sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms"
+          className="w-full flex-1 border-0 min-h-screen"
+        />
+      ) : null}
+      <PortfolioShell
+        brandName={payload.profile.brand_name}
+        email={payload.profile.email}
+        location={payload.profile.location}
+        skills={payload.skills.map((s) => ({ name: s.name, icon_key: s.icon_key }))}
+        ai={payload.ai}
+        theme={payload.uiState?.theme}
+        epochNumber={payload.uiState?.epoch_number ?? epochNumber}
+        hasHtml={Boolean(styledHtml)}
+      />
+    </div>
+  );
 }
 
 export default function AdminUiPreviewPage() {

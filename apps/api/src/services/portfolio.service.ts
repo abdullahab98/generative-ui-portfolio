@@ -2,8 +2,20 @@ import type { PortfolioPayload } from '@portfolio/shared';
 import { supabaseAdmin } from '../config/supabase.js';
 import { getPortfolioUiStateForVisitor } from './ui-evolution.service.js';
 
-export async function getPublicPortfolio(): Promise<PortfolioPayload> {
-  const [profileRes, skillsRes, projectsRes, publicationsRes, aiRes, uiState] = await Promise.all([
+const CONTENT_CACHE_TTL_MS = 30_000;
+type StaticPortfolioContent = Omit<PortfolioPayload, 'uiState'>;
+let contentCache: { expiresAt: number; data: StaticPortfolioContent } | null = null;
+
+export function invalidatePortfolioContentCache(): void {
+  contentCache = null;
+}
+
+async function getStaticPortfolioContent(): Promise<StaticPortfolioContent> {
+  if (contentCache && contentCache.expiresAt > Date.now()) {
+    return contentCache.data;
+  }
+
+  const [profileRes, skillsRes, projectsRes, publicationsRes, aiRes] = await Promise.all([
     supabaseAdmin.from('site_profile').select('*').eq('slug', 'main').single(),
     supabaseAdmin
       .from('skills')
@@ -22,7 +34,6 @@ export async function getPublicPortfolio(): Promise<PortfolioPayload> {
       .order('published_year', { ascending: false })
       .order('sort_order', { ascending: true }),
     supabaseAdmin.from('ai_settings').select('is_enabled, quick_prompts').eq('slug', 'default').maybeSingle(),
-    getPortfolioUiStateForVisitor(),
   ]);
 
   if (profileRes.error) throw profileRes.error;
@@ -30,7 +41,7 @@ export async function getPublicPortfolio(): Promise<PortfolioPayload> {
   if (projectsRes.error) throw projectsRes.error;
   if (publicationsRes.error) throw publicationsRes.error;
 
-  return {
+  const data: StaticPortfolioContent = {
     profile: profileRes.data,
     skills: skillsRes.data ?? [],
     projects: projectsRes.data ?? [],
@@ -39,6 +50,19 @@ export async function getPublicPortfolio(): Promise<PortfolioPayload> {
       is_enabled: aiRes.data?.is_enabled ?? true,
       quick_prompts: aiRes.data?.quick_prompts ?? [],
     },
+  };
+  contentCache = { expiresAt: Date.now() + CONTENT_CACHE_TTL_MS, data };
+  return data;
+}
+
+export async function getPublicPortfolio(): Promise<PortfolioPayload> {
+  const [content, uiState] = await Promise.all([
+    getStaticPortfolioContent(),
+    getPortfolioUiStateForVisitor(),
+  ]);
+
+  return {
+    ...content,
     uiState,
   };
 }

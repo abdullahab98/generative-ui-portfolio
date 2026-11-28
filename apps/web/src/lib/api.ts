@@ -7,7 +7,8 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000
 export async function fetchPortfolio(): Promise<PortfolioPayload> {
   try {
     const res = await fetch(`${API_URL}/api/v1/portfolio`, {
-      cache: 'no-store',
+      next: { revalidate: 60, tags: ['portfolio'] },
+      signal: AbortSignal.timeout(4500),
     });
     if (!res.ok) throw new Error(`API ${res.status}`);
     return (await res.json()) as PortfolioPayload;

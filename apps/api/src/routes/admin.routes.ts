@@ -22,6 +22,7 @@ import {
   saveAiRouting,
 } from '../services/llm-router.service.js';
 import { triggerWebRevalidation } from '../services/revalidate.service.js';
+import { invalidatePortfolioContentCache } from '../services/portfolio.service.js';
 import {
   clearUiGenerationLogs,
   deleteSavedUiTemplate,
@@ -30,6 +31,7 @@ import {
   getSavedUiTemplateByEpoch,
   getUiDisplayAdminData,
   getUiGenerationLogs,
+  invalidateVisitorUiCache,
   saveUiDisplayConfig,
 } from '../services/ui-evolution.service.js';
 
@@ -76,6 +78,7 @@ adminRouter.put('/profile', validateBody(ProfileUpdateSchema), async (req, res, 
       .select()
       .single();
     if (error) throw error;
+    invalidatePortfolioContentCache();
     await triggerWebRevalidation();
     res.json(data);
   } catch (err) {
@@ -98,6 +101,7 @@ adminRouter.post('/skills', validateBody(SkillInputSchema), async (req, res, nex
   try {
     const { data, error } = await supabaseAdmin.from('skills').insert(req.body).select().single();
     if (error) throw error;
+    invalidatePortfolioContentCache();
     await triggerWebRevalidation();
     res.status(201).json(data);
   } catch (err) {
@@ -109,6 +113,7 @@ adminRouter.patch('/skills/:id', validateBody(SkillInputSchema.partial()), async
   try {
     const { data, error } = await supabaseAdmin.from('skills').update(req.body).eq('id', req.params.id).select().single();
     if (error) throw error;
+    invalidatePortfolioContentCache();
     await triggerWebRevalidation();
     res.json(data);
   } catch (err) {
@@ -120,6 +125,7 @@ adminRouter.delete('/skills/:id', async (req, res, next) => {
   try {
     const { error } = await supabaseAdmin.from('skills').delete().eq('id', req.params.id);
     if (error) throw error;
+    invalidatePortfolioContentCache();
     await triggerWebRevalidation();
     res.status(204).end();
   } catch (err) {
@@ -142,6 +148,7 @@ adminRouter.post('/projects', validateBody(ProjectInputSchema), async (req, res,
   try {
     const { data, error } = await supabaseAdmin.from('projects').insert(req.body).select().single();
     if (error) throw error;
+    invalidatePortfolioContentCache();
     await triggerWebRevalidation();
     res.status(201).json(data);
   } catch (err) {
@@ -158,6 +165,7 @@ adminRouter.patch('/projects/:id', validateBody(ProjectInputSchema.partial()), a
       .select()
       .single();
     if (error) throw error;
+    invalidatePortfolioContentCache();
     await triggerWebRevalidation();
     res.json(data);
   } catch (err) {
@@ -169,6 +177,7 @@ adminRouter.delete('/projects/:id', async (req, res, next) => {
   try {
     const { error } = await supabaseAdmin.from('projects').delete().eq('id', req.params.id);
     if (error) throw error;
+    invalidatePortfolioContentCache();
     await triggerWebRevalidation();
     res.status(204).end();
   } catch (err) {
@@ -195,6 +204,7 @@ adminRouter.post('/publications', validateBody(PublicationInputSchema), async (r
   try {
     const { data, error } = await supabaseAdmin.from('publications').insert(req.body).select().single();
     if (error) throw error;
+    invalidatePortfolioContentCache();
     await triggerWebRevalidation();
     res.status(201).json(data);
   } catch (err) {
@@ -211,6 +221,7 @@ adminRouter.patch('/publications/:id', validateBody(PublicationInputSchema.parti
       .select()
       .single();
     if (error) throw error;
+    invalidatePortfolioContentCache();
     await triggerWebRevalidation();
     res.json(data);
   } catch (err) {
@@ -222,6 +233,7 @@ adminRouter.delete('/publications/:id', async (req, res, next) => {
   try {
     const { error } = await supabaseAdmin.from('publications').delete().eq('id', req.params.id);
     if (error) throw error;
+    invalidatePortfolioContentCache();
     await triggerWebRevalidation();
     res.status(204).end();
   } catch (err) {
@@ -292,6 +304,7 @@ adminRouter.put('/ai-settings', validateBody(AiSettingsUpdateSchema), async (req
       .select()
       .single();
     if (error) throw error;
+    invalidatePortfolioContentCache();
     await triggerWebRevalidation();
     res.json(data);
   } catch (err) {
@@ -362,6 +375,7 @@ adminRouter.patch(
         .update(updatePayload)
         .eq('slug', 'default');
       if (error) throw error;
+      invalidateVisitorUiCache();
       await triggerWebRevalidation();
       const updated = await getPortfolioUiState();
       res.json(updated ?? null);
