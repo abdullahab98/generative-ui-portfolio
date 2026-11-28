@@ -25,7 +25,7 @@ import { APP_CHANGELOG } from '@/lib/changelog';
 import { AdminProvider, useAdmin } from './AdminProvider';
 import { LoadingPanel } from './AdminUi';
 
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.2.1';
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.2.2';
 const BUILD_SHA = process.env.NEXT_PUBLIC_BUILD_SHA || '';
 
 const NAV_ITEMS = [

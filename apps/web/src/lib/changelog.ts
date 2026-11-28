@@ -7,6 +7,15 @@ export interface ReleaseEntry {
 
 export const APP_CHANGELOG: ReleaseEntry[] = [
   {
+    version: '0.2.2',
+    date: '2026-11-28',
+    title: 'Blueprint-to-Table Template Migration & Cleanup',
+    changes: [
+      'Added SQL migration to transfer all legacy blueprint.saved_templates and active generated_html into separate rows in public.portfolio_ui_templates.',
+      'Automatically strips legacy saved_templates from portfolio_ui_state.blueprint after migration to keep the state row lightweight.',
+    ],
+  },
+  {
     version: '0.2.1',
     date: '2026-11-28',
     title: 'Admin Release Changelog & Version Tracker',

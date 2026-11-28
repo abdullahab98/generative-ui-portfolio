@@ -196,6 +196,42 @@ create policy "Admin all portfolio_ui_state" on public.portfolio_ui_state for al
 create policy "Public read portfolio_ui_templates" on public.portfolio_ui_templates for select using (true);
 create policy "Admin all portfolio_ui_templates" on public.portfolio_ui_templates for all using (public.is_admin()) with check (public.is_admin());
 
+-- One-time transfer of any legacy templates stored in portfolio_ui_state.blueprint->'saved_templates'
+insert into public.portfolio_ui_templates (epoch_number, theme, model_name, generated_html, html_length)
+select
+  (tpl->>'epoch_number')::int as epoch_number,
+  tpl->'theme' as theme,
+  tpl->>'model_name' as model_name,
+  tpl->>'generated_html' as generated_html,
+  char_length(tpl->>'generated_html') as html_length
+from public.portfolio_ui_state s,
+  jsonb_array_elements(coalesce(s.blueprint->'saved_templates', '[]'::jsonb)) as tpl
+where s.slug = 'default'
+  and tpl->>'epoch_number' is not null
+  and tpl->>'generated_html' is not null
+  and char_length(tpl->>'generated_html') >= 300
+on conflict (epoch_number) do nothing;
+
+-- Also ensure the current active generated_html on portfolio_ui_state is saved as a row
+insert into public.portfolio_ui_templates (epoch_number, theme, model_name, generated_html, html_length)
+select
+  s.epoch_number,
+  s.theme,
+  s.blueprint->>'model_name',
+  s.generated_html,
+  char_length(s.generated_html)
+from public.portfolio_ui_state s
+where s.slug = 'default'
+  and s.generated_html is not null
+  and char_length(s.generated_html) >= 300
+on conflict (epoch_number) do nothing;
+
+-- Remove legacy saved_templates array from blueprint once transferred
+update public.portfolio_ui_state
+set blueprint = blueprint - 'saved_templates'
+where slug = 'default'
+  and blueprint ? 'saved_templates';
+
 -- ============================================================
 -- Storage Bucket for Project Images & Resume PDF
 -- ============================================================

@@ -284,7 +284,7 @@ async function backfillLegacyTemplatesToTable(): Promise<SavedTemplate[]> {
 
   const legacy = parseSavedTemplates(rawRow, baseState);
   if (legacy.length > 0) {
-    await supabaseAdmin.from('portfolio_ui_templates').upsert(
+    const { error: upsertErr } = await supabaseAdmin.from('portfolio_ui_templates').upsert(
       legacy.map((t) => ({
         epoch_number: t.epoch_number,
         theme: t.theme,
@@ -294,6 +294,20 @@ async function backfillLegacyTemplatesToTable(): Promise<SavedTemplate[]> {
       })),
       { onConflict: 'epoch_number' },
     );
+
+    if (!upsertErr) {
+      const existingBp =
+        rawRow.blueprint && typeof rawRow.blueprint === 'object'
+          ? { ...(rawRow.blueprint as Record<string, unknown>) }
+          : {};
+      if ('saved_templates' in existingBp) {
+        delete existingBp.saved_templates;
+        await supabaseAdmin
+          .from('portfolio_ui_state')
+          .update({ blueprint: existingBp, updated_at: new Date().toISOString() })
+          .eq('slug', 'default');
+      }
+    }
   }
   return legacy;
 }
