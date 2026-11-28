@@ -114,6 +114,10 @@ export function invalidateVisitorUiCache(): void {
   visitorUiCache = null;
 }
 
+export function getCachedVisitorDisplayMode(): UiDisplayConfig['mode'] {
+  return visitorUiCache?.displayConfig.mode ?? 'random';
+}
+
 export type SavedTemplate = {
   epoch_number: number;
   theme: PortfolioThemeSpec;
@@ -462,8 +466,11 @@ export async function saveUiDisplayConfig(config: UiDisplayConfig): Promise<{
   serialCursor = 0;
   invalidateVisitorUiCache();
 
+  const cleanBp = { ...existingBp };
+  delete cleanBp.display_state;
+
   const updatePayload: Record<string, unknown> = {
-    blueprint: { ...existingBp, display_config: validated },
+    blueprint: { ...cleanBp, display_config: validated },
     updated_at: new Date().toISOString(),
   };
 

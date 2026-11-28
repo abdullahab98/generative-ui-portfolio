@@ -7,6 +7,15 @@ export interface ReleaseEntry {
 
 export const APP_CHANGELOG: ReleaseEntry[] = [
   {
+    version: '0.2.4',
+    date: '2026-11-28',
+    title: 'Live Visitor UI Rotation (Single / Random / Serial)',
+    changes: [
+      'Enabled dynamic visitor UI switching based on Admin Display & Rotation Control (Single UI, Random No-Repeat, and Serial In Order).',
+      'API serves Cache-Control: no-store for Random/Serial rotation modes and s-maxage=60 for Single pinned mode; frontend fetches fresh rotation state on each visit with a 4.5s timeout.',
+    ],
+  },
+  {
     version: '0.2.3',
     date: '2026-11-28',
     title: 'Per-Row Table Optimization & Template Timestamps',

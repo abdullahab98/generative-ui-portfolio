@@ -8,7 +8,7 @@ import { verifyTurnstile } from '../middleware/turnstile.js';
 import { getPublicPortfolio } from '../services/portfolio.service.js';
 import { sendContactNotification } from '../services/email.service.js';
 import { answerPortfolioChat } from '../services/ai.service.js';
-import { evolvePortfolioUi } from '../services/ui-evolution.service.js';
+import { evolvePortfolioUi, getCachedVisitorDisplayMode } from '../services/ui-evolution.service.js';
 
 export const publicRouter = Router();
 
@@ -29,7 +29,12 @@ const strictLimiter = rateLimitMiddleware({
 publicRouter.get('/portfolio', async (_req, res, next) => {
   try {
     const data = await getPublicPortfolio();
-    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
+    const mode = getCachedVisitorDisplayMode();
+    if (mode === 'single') {
+      res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    } else {
+      res.setHeader('Cache-Control', 'no-store');
+    }
     res.json(data);
     // Non-blocking background UI evolution for the next visitor if cooldown elapsed
     void evolvePortfolioUi(false);
